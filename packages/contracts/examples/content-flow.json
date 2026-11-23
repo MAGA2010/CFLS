@@ -1,0 +1,41 @@
+{
+  "createDraft": {
+    "request": {
+      "type": "news",
+      "category": "updates",
+      "title": "Synthetic launch notice",
+      "summary": "Synthetic only",
+      "body": "Synthetic body",
+      "isDemo": true
+    },
+    "response": {
+      "data": {
+        "id": "e5378777-5970-4a54-b0e6-c93d54e6ce76",
+        "type": "news",
+        "category": "updates",
+        "title": "Synthetic launch notice",
+        "summary": "Synthetic only",
+        "body": "Synthetic body",
+        "publishedAt": null,
+        "isDemo": true,
+        "status": "draft",
+        "version": 1,
+        "authorId": "fe43ecbd-75e9-40a7-90c0-45d9ac973918",
+        "reviewerId": null,
+        "updatedAt": "2026-11-23T11:00:00.000Z"
+      },
+      "requestId": "3fcb8618-17bc-4ab1-b508-1a07a0d80aca"
+    }
+  },
+  "stalePatchConflict": {
+    "request": { "version": 1, "title": "Stale edit" },
+    "response": {
+      "error": {
+        "code": "VERSION_CONFLICT",
+        "message": "The resource version has changed",
+        "details": { "currentVersion": 2 }
+      },
+      "requestId": "d14723e7-5d17-4d18-b1e7-2ee0fb5c9cd1"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "cfls",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @cfls/api dev",
+    "build": "pnpm --filter @cfls/api build",
+    "lint": "pnpm --filter @cfls/api lint",
+    "typecheck": "pnpm --filter @cfls/api typecheck",
+    "test": "pnpm --filter @cfls/api test",
+    "migrate": "pnpm --filter @cfls/api migrate",
+    "seed:local": "pnpm --filter @cfls/api seed:local",
+    "seed:staging": "pnpm --filter @cfls/api seed:staging",
+    "test:smoke": "pnpm --filter @cfls/api test:smoke"
+  }
+}

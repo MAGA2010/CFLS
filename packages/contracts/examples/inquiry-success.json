@@ -1,0 +1,19 @@
+{
+  "request": {
+    "headers": { "Idempotency-Key": "b6deecb0-db7e-4389-a0be-50562fb58239" },
+    "body": {
+      "kind": "consultation",
+      "testName": "Synthetic Student",
+      "testContact": "student@example.invalid",
+      "message": "Synthetic inquiry only",
+      "isTest": true
+    }
+  },
+  "response": {
+    "data": {
+      "id": "c13f13cd-914a-448f-91fe-f763d5a28e42",
+      "createdAt": "2026-11-23T11:01:00.000Z"
+    },
+    "requestId": "b71b205b-b958-469d-8bf2-9a46c1f37bdd"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "request": {
+    "username": "demo-editor",
+    "password": "wrong-password"
+  },
+  "response": {
+    "error": {
+      "code": "AUTH_FAILED",
+      "message": "Invalid username or password"
+    },
+    "requestId": "9c83454c-1639-4821-8276-c65d6544e564"
+  }
+}

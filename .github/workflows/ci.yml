@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_USER: cfls
+          POSTGRES_PASSWORD: cfls-ci-only
+          POSTGRES_DB: cfls_test
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cfls -d cfls_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      NODE_ENV: local
+      TEST_DATABASE_URL: postgresql://cfls:cfls-ci-only@127.0.0.1:5432/cfls_test
+      DATABASE_URL: postgresql://cfls:cfls-ci-only@127.0.0.1:5432/cfls_test
+      SESSION_SECRET: ci-only-session-secret-at-least-32-bytes
+      CORS_ORIGIN: http://127.0.0.1:5173
+      INQUIRY_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm migrate
+      - run: pnpm migrate
+      - run: pnpm seed:local
+      - name: Scan tracked files for common secret material and real data markers
+        run: |
+          ! git grep -nE '(postgresql://[^ ]+:[^ ]+@|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16})' -- ':!pnpm-lock.yaml' ':!.env.example' ':!infra/docker-compose.yml' ':!README.md'

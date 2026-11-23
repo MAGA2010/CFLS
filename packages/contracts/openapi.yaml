@@ -1,0 +1,685 @@
+openapi: 3.1.0
+info:
+  title: CFLS API
+  version: 1.0.0
+  description: |
+    CFLS v1 contract. All timestamps are UTC ISO 8601. Responses use the envelope
+    `{data, meta?, requestId}` or `{error:{code,message,details?}, requestId}`.
+    Admin writes require both the HttpOnly session cookie and `X-CSRF-Token`.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local
+tags:
+  - name: Public
+  - name: Auth
+  - name: Contents
+  - name: Inquiries
+  - name: Audit
+  - name: Health
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      responses:
+        '200':
+          description: Database is reachable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '503':
+          description: Database is unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+  /v1/public/contents:
+    get:
+      tags: [Public]
+      operationId: listPublicContents
+      parameters:
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/ContentType' } }
+        - { name: category, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Published content only
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta, requestId]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublicContent' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+                  requestId: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /v1/public/contents/{id}:
+    get:
+      tags: [Public]
+      operationId: getPublicContent
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Published content
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  data: { $ref: '#/components/schemas/PublicContent' }
+                  requestId: { type: string, format: uuid }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/public/test-inquiries:
+    post:
+      tags: [Public]
+      operationId: createTestInquiry
+      description: Only available in local/staging when explicitly enabled. Production always returns 404.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TestInquiryCreate' }
+      responses:
+        '201':
+          description: First successful submission
+          headers:
+            Idempotent-Replay:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InquiryCreatedResponse' }
+        '200':
+          description: Idempotent replay
+          headers:
+            Idempotent-Replay:
+              schema: { type: string, enum: ['true'] }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InquiryCreatedResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /v1/admin/sessions:
+    post:
+      tags: [Auth]
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Login succeeded; session and CSRF cookies are set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/AuthFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /v1/admin/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Current identity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/admin/sessions/current:
+    delete:
+      tags: [Auth]
+      operationId: logout
+      security: [{ sessionCookie: [], csrfHeader: [] }]
+      responses:
+        '204': { description: Session revoked }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/contents:
+    get:
+      tags: [Contents]
+      operationId: listAdminContents
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/ContentType' } }
+        - { name: category, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ContentStatus' } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: Content visible to the role
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminContent' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+                  requestId: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Contents]
+      operationId: createDraft
+      security: [{ sessionCookie: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContentCreate' }
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminContent' }
+                  requestId: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/contents/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Contents]
+      operationId: getAdminContent
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Content detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminContent' }
+                  requestId: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Contents]
+      operationId: updateDraft
+      security: [{ sessionCookie: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContentPatch' }
+      responses:
+        '200':
+          description: Draft updated with version incremented
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminContent' }
+                  requestId: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/admin/contents/{id}/revisions:
+    get:
+      tags: [Contents]
+      operationId: listContentRevisions
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: Revisions newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevisionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/contents/{id}/submit:
+    post: { $ref: '#/components/pathItems/SubmitAction' }
+  /v1/admin/contents/{id}/approve:
+    post: { $ref: '#/components/pathItems/ApproveAction' }
+  /v1/admin/contents/{id}/reject:
+    post: { $ref: '#/components/pathItems/RejectAction' }
+  /v1/admin/contents/{id}/publish:
+    post: { $ref: '#/components/pathItems/PublishAction' }
+  /v1/admin/contents/{id}/unpublish:
+    post: { $ref: '#/components/pathItems/UnpublishAction' }
+  /v1/admin/inquiries:
+    get:
+      tags: [Inquiries]
+      operationId: listInquiries
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: kind, in: query, schema: { type: string, enum: [consultation, visit] } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: Test inquiry list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Inquiry' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+                  requestId: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/inquiries/{id}:
+    get:
+      tags: [Inquiries]
+      operationId: getInquiry
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Test inquiry detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Inquiry' }
+                  requestId: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/audit-events:
+    get:
+      tags: [Audit]
+      operationId: listAuditEvents
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: Append-only audit events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditListResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: cfls_session
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  pathItems:
+    SubmitAction:
+      post:
+        tags: [Contents]
+        operationId: submitContent
+        security: [{ sessionCookie: [], csrfHeader: [] }]
+        parameters: [{ $ref: '#/components/parameters/ContentId' }]
+        requestBody: { $ref: '#/components/requestBodies/VersionRequest' }
+        responses:
+          '200': { $ref: '#/components/responses/ContentActionSuccess' }
+          '400': { $ref: '#/components/responses/ValidationError' }
+          '401': { $ref: '#/components/responses/Unauthenticated' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '409': { $ref: '#/components/responses/Conflict' }
+    ApproveAction:
+      post:
+        tags: [Contents]
+        operationId: approveContent
+        security: [{ sessionCookie: [], csrfHeader: [] }]
+        parameters: [{ $ref: '#/components/parameters/ContentId' }]
+        requestBody: { $ref: '#/components/requestBodies/VersionRequest' }
+        responses:
+          '200': { $ref: '#/components/responses/ContentActionSuccess' }
+          '400': { $ref: '#/components/responses/ValidationError' }
+          '401': { $ref: '#/components/responses/Unauthenticated' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '409': { $ref: '#/components/responses/Conflict' }
+    RejectAction:
+      post:
+        tags: [Contents]
+        operationId: rejectContent
+        security: [{ sessionCookie: [], csrfHeader: [] }]
+        parameters: [{ $ref: '#/components/parameters/ContentId' }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [version, reason]
+                properties:
+                  version: { type: integer, minimum: 1 }
+                  reason: { type: string, minLength: 1, maxLength: 500 }
+        responses:
+          '200': { $ref: '#/components/responses/ContentActionSuccess' }
+          '400': { $ref: '#/components/responses/ValidationError' }
+          '401': { $ref: '#/components/responses/Unauthenticated' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '409': { $ref: '#/components/responses/Conflict' }
+    PublishAction:
+      post:
+        tags: [Contents]
+        operationId: publishContent
+        security: [{ sessionCookie: [], csrfHeader: [] }]
+        parameters: [{ $ref: '#/components/parameters/ContentId' }]
+        requestBody: { $ref: '#/components/requestBodies/VersionRequest' }
+        responses:
+          '200': { $ref: '#/components/responses/ContentActionSuccess' }
+          '400': { $ref: '#/components/responses/ValidationError' }
+          '401': { $ref: '#/components/responses/Unauthenticated' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '409': { $ref: '#/components/responses/Conflict' }
+    UnpublishAction:
+      post:
+        tags: [Contents]
+        operationId: unpublishContent
+        security: [{ sessionCookie: [], csrfHeader: [] }]
+        parameters: [{ $ref: '#/components/parameters/ContentId' }]
+        requestBody: { $ref: '#/components/requestBodies/VersionRequest' }
+        responses:
+          '200': { $ref: '#/components/responses/ContentActionSuccess' }
+          '400': { $ref: '#/components/responses/ValidationError' }
+          '401': { $ref: '#/components/responses/Unauthenticated' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '409': { $ref: '#/components/responses/Conflict' }
+  parameters:
+    ContentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  requestBodies:
+    VersionRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [version]
+            properties:
+              version: { type: integer, minimum: 1 }
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthenticated:
+      description: Missing or invalid session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    AuthFailed:
+      description: Unified login failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Role, ownership or CSRF check failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Resource not found or hidden
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Version, transition or idempotency conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ContentActionSuccess:
+      description: Transition succeeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data: { $ref: '#/components/schemas/AdminContent' }
+              requestId: { type: string, format: uuid }
+  schemas:
+    ContentType:
+      type: string
+      enum: [school, academics, outcomes, campus, student_union, news, admissions, contact]
+    ContentStatus:
+      type: string
+      enum: [draft, pending_review, approved, published]
+    Role:
+      type: string
+      enum: [editor, reviewer, admissions, admin]
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+    PublicContent:
+      type: object
+      additionalProperties: false
+      required: [id, type, category, title, summary, body, publishedAt, isDemo]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/ContentType' }
+        category: { type: string }
+        title: { type: string }
+        summary: { type: [string, 'null'] }
+        body: { type: string }
+        publishedAt: { type: string, format: date-time }
+        isDemo: { type: boolean }
+    AdminContent:
+      allOf:
+        - $ref: '#/components/schemas/PublicContent'
+        - type: object
+          required: [status, version, authorId, reviewerId, updatedAt]
+          properties:
+            status: { $ref: '#/components/schemas/ContentStatus' }
+            version: { type: integer, minimum: 1 }
+            authorId: { type: string, format: uuid }
+            reviewerId: { type: [string, 'null'], format: uuid }
+            updatedAt: { type: string, format: date-time }
+    ContentCreate:
+      type: object
+      additionalProperties: false
+      required: [type, category, title, isDemo]
+      properties:
+        type: { $ref: '#/components/schemas/ContentType' }
+        category: { type: string, minLength: 1, maxLength: 40 }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        summary: { type: string, maxLength: 300 }
+        body: { type: string, maxLength: 20000, default: '' }
+        isDemo: { type: boolean }
+    ContentPatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        type: { $ref: '#/components/schemas/ContentType' }
+        category: { type: string, minLength: 1, maxLength: 40 }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        summary: { type: [string, 'null'], maxLength: 300 }
+        body: { type: string, maxLength: 20000 }
+        isDemo: { type: boolean }
+        version: { type: integer, minimum: 1 }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 100 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+    LoginResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [id, username, roles, environment, csrfToken]
+          properties:
+            id: { type: string, format: uuid }
+            username: { type: string }
+            roles:
+              type: array
+              items: { $ref: '#/components/schemas/Role' }
+            environment: { type: string, enum: [local, staging, production] }
+            csrfToken: { type: string }
+        requestId: { type: string, format: uuid }
+    MeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [id, username, roles, environment]
+          properties:
+            id: { type: string, format: uuid }
+            username: { type: string }
+            roles:
+              type: array
+              items: { $ref: '#/components/schemas/Role' }
+            environment: { type: string, enum: [local, staging, production] }
+        requestId: { type: string, format: uuid }
+    TestInquiryCreate:
+      type: object
+      additionalProperties: false
+      required: [kind, testName, testContact, isTest]
+      properties:
+        kind: { type: string, enum: [consultation, visit] }
+        testName: { type: string, minLength: 1, maxLength: 40 }
+        testContact: { type: string, minLength: 1, maxLength: 100 }
+        message: { type: string, maxLength: 500 }
+        isTest: { type: boolean, const: true }
+    InquiryCreatedResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [id, createdAt]
+          properties:
+            id: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+        requestId: { type: string, format: uuid }
+    Inquiry:
+      type: object
+      required: [id, kind, testName, testContact, message, status, isTest, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [consultation, visit] }
+        testName: { type: string }
+        testContact: { type: string }
+        message: { type: [string, 'null'] }
+        status: { type: string, enum: [new, viewed] }
+        isTest: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    RevisionListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              version: { type: integer }
+              snapshot: { type: object }
+              actorId: { type: string, format: uuid }
+              createdAt: { type: string, format: date-time }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+        requestId: { type: string, format: uuid }
+    AuditListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              actorId: { type: [string, 'null'], format: uuid }
+              action: { type: string }
+              targetType: { type: string }
+              targetId: { type: [string, 'null'] }
+              requestId: { type: string }
+              result: { type: string, enum: [success, failure, denied] }
+              createdAt: { type: string, format: date-time }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+        requestId: { type: string, format: uuid }
+    ErrorResponse:
+      type: object
+      required: [error, requestId]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_FAILED, UNAUTHENTICATED, AUTH_FAILED, FORBIDDEN, SELF_REVIEW_FORBIDDEN, CSRF_INVALID, NOT_FOUND, VERSION_CONFLICT, INVALID_TRANSITION, IDEMPOTENCY_CONFLICT, RATE_LIMITED, INTERNAL_ERROR]
+            message: { type: string }
+            details: {}
+        requestId: { type: string, format: uuid }
+    HealthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            status: { type: string, enum: [ok, ready, unavailable] }
+        requestId: { type: string, format: uuid }

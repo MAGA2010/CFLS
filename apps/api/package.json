@@ -1,0 +1,38 @@
+{
+  "name": "@cfls/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "esbuild src/server.ts src/seed.ts src/migrate.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outdir=dist",
+    "lint": "oxlint src test -D correctness -D suspicious",
+    "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "migrate": "tsx src/migrate.ts",
+    "seed:local": "tsx src/seed.ts local",
+    "seed:staging": "tsx src/seed.ts staging",
+    "seed:local:compiled": "node dist/seed.js local",
+    "seed:staging:compiled": "node dist/seed.js staging",
+    "test:smoke": "tsx test/smoke.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^11.1.0",
+    "bcryptjs": "^3.0.2",
+    "fastify": "^5.6.1",
+    "pg": "^8.16.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "oxlint": "^1.94.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14",
+    "esbuild": "^0.28.2"
+  }
+}
