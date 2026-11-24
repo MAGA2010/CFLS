@@ -11,6 +11,7 @@ import {
   loadSession,
   verifyPassword,
   verifyCsrf,
+  verifyTrustedOrigin,
 } from '../security.js';
 import { loginSchema } from '../validation.js';
 
@@ -32,6 +33,7 @@ export async function authRoutes(
   const loginUserLimiter = new RateLimiter(config.rateLimitLogin);
 
   app.post('/v1/admin/sessions', async (request, reply) => {
+    verifyTrustedOrigin(request, config);
     if (!loginIpLimiter.hit(`ip:${request.ip}`)) throw errors.rateLimited();
     const body = loginSchema.parse(request.body);
     if (!loginUserLimiter.hit(`user:${body.username.toLowerCase()}`)) throw errors.rateLimited();

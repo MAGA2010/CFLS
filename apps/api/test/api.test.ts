@@ -94,11 +94,47 @@ describe('authentication, RBAC and CSRF', () => {
     ).toBe(403);
   });
 
+  it('rejects untrusted login origins and sets secure staging cookies', async () => {
+    const missing = await context.app.inject({
+      method: 'POST',
+      url: '/v1/admin/sessions',
+      payload: { username: 'test-editor', password: 'wrong-password' },
+    });
+    expect(missing.statusCode).toBe(403);
+    expect(missing.json().error.code).toBe('CSRF_INVALID');
+
+    const wrong = await context.app.inject({
+      method: 'POST',
+      url: '/v1/admin/sessions',
+      headers: { origin: 'https://evil.example.invalid' },
+      payload: { username: 'test-editor', password: 'wrong-password' },
+    });
+    expect(wrong.statusCode).toBe(403);
+
+    const stagingConfig = testConfig({ nodeEnv: 'staging' });
+    const stagingApp = await buildApp({ config: stagingConfig, db: context.db });
+    const login = await stagingApp.inject({
+      method: 'POST',
+      url: '/v1/admin/sessions',
+      headers: { origin: stagingConfig.corsOrigin },
+      payload: { username: 'test-editor', password: 'Test-only-password-123!' },
+    });
+    expect(login.statusCode).toBe(200);
+    const setCookie = login.headers['set-cookie'];
+    const cookies = (Array.isArray(setCookie) ? setCookie : [setCookie ?? '']).join('\n');
+    expect(cookies).toContain('HttpOnly');
+    expect(cookies).toContain('SameSite=Lax');
+    expect(cookies).toContain('Secure');
+    expect(cookies).toContain('Path=/');
+    await stagingApp.close();
+  });
+
   it('rate limits repeated bad logins', async () => {
     for (let index = 0; index < 5; index += 1) {
       const response = await context.app.inject({
         method: 'POST',
         url: '/v1/admin/sessions',
+        headers: { origin: context.config.corsOrigin },
         payload: { username: 'test-editor', password: 'wrong-password' },
       });
       expect(response.statusCode).toBe(401);
@@ -106,6 +142,7 @@ describe('authentication, RBAC and CSRF', () => {
     const limited = await context.app.inject({
       method: 'POST',
       url: '/v1/admin/sessions',
+      headers: { origin: context.config.corsOrigin },
       payload: { username: 'test-editor', password: 'wrong-password' },
     });
     expect(limited.statusCode).toBe(429);
@@ -196,6 +233,39 @@ describe('content workflow', () => {
       headers: { cookie: reviewer.cookie },
     });
     expect(revisions.json().meta.total).toBe(5);
+
+    const unpublished = await context.app.inject({
+      method: 'POST',
+      url: `/v1/admin/contents/${draft.id}/unpublish`,
+      headers: writeHeaders(reviewer),
+      payload: { version: 5 },
+    });
+    expect(unpublished.statusCode).toBe(200);
+    expect(unpublished.json().data.status).toBe('draft');
+    expect((await context.app.inject({ method: 'GET', url: `/v1/public/contents/${draft.id}` })).statusCode).toBe(404);
+
+    const rejectedDraft = await createDraft(editor);
+    await context.app.inject({
+      method: 'POST',
+      url: `/v1/admin/contents/${rejectedDraft.id}/submit`,
+      headers: writeHeaders(editor),
+      payload: { version: 1 },
+    });
+    const missingReason = await context.app.inject({
+      method: 'POST',
+      url: `/v1/admin/contents/${rejectedDraft.id}/reject`,
+      headers: writeHeaders(reviewer),
+      payload: { version: 2 },
+    });
+    expect(missingReason.statusCode).toBe(400);
+    const rejected = await context.app.inject({
+      method: 'POST',
+      url: `/v1/admin/contents/${rejectedDraft.id}/reject`,
+      headers: writeHeaders(reviewer),
+      payload: { version: 2, reason: 'Synthetic rejection reason' },
+    });
+    expect(rejected.statusCode).toBe(200);
+    expect(rejected.json().data.status).toBe('draft');
   });
 
   it('rejects self-review, version conflicts and invalid transitions', async () => {
@@ -215,6 +285,23 @@ describe('content workflow', () => {
     });
     expect(selfReview.statusCode).toBe(403);
     expect(selfReview.json().error.code).toBe('SELF_REVIEW_FORBIDDEN');
+
+    const multi = await context.login('test-multi');
+    const multiDraft = await createDraft(multi);
+    await context.app.inject({
+      method: 'POST',
+      url: `/v1/admin/contents/${multiDraft.id}/submit`,
+      headers: writeHeaders(multi),
+      payload: { version: 1 },
+    });
+    const multiSelfReview = await context.app.inject({
+      method: 'POST',
+      url: `/v1/admin/contents/${multiDraft.id}/approve`,
+      headers: writeHeaders(multi),
+      payload: { version: 2 },
+    });
+    expect(multiSelfReview.statusCode).toBe(403);
+    expect(multiSelfReview.json().error.code).toBe('SELF_REVIEW_FORBIDDEN');
 
     const editor = await context.login('test-editor');
     const draft = await createDraft(editor);
@@ -306,6 +393,77 @@ describe('inquiries and audit', () => {
     });
     expect(closed.statusCode).toBe(404);
     await productionApp.close();
+  });
+
+  it('serializes concurrent stale writes and concurrent idempotent submissions on PostgreSQL', async () => {
+    if (context.config.databaseUrl.startsWith('memory://')) return;
+
+    const editor = await context.login('test-editor');
+    const draft = await createDraft(editor);
+    const writes = await Promise.all([
+      context.app.inject({
+        method: 'PATCH',
+        url: `/v1/admin/contents/${draft.id}`,
+        headers: writeHeaders(editor),
+        payload: { version: 1, title: 'Concurrent edit A' },
+      }),
+      context.app.inject({
+        method: 'PATCH',
+        url: `/v1/admin/contents/${draft.id}`,
+        headers: writeHeaders(editor),
+        payload: { version: 1, title: 'Concurrent edit B' },
+      }),
+    ]);
+    expect(writes.map((response) => response.statusCode).toSorted()).toEqual([200, 409]);
+
+    const key = randomUUID();
+    const submissions = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        context.app.inject({
+          method: 'POST',
+          url: '/v1/public/test-inquiries',
+          headers: { 'idempotency-key': key },
+          payload: inquiry,
+        }),
+      ),
+    );
+    expect(submissions.filter((response) => response.statusCode === 201)).toHaveLength(1);
+    expect(submissions.filter((response) => response.statusCode === 200)).toHaveLength(9);
+    const count = await context.db.query<{ total: string }>('SELECT count(*) AS total FROM inquiries');
+    expect(Number(count.rows[0]?.total)).toBe(1);
+  });
+
+  it('does not emit inquiry bodies, contacts, names or passwords in logs', async () => {
+    const logs: string[] = [];
+    const config = testConfig({ logLevel: 'info' });
+    const app = await buildApp({
+      config,
+      db: context.db,
+      loggerStream: { write: (message) => logs.push(message) },
+    });
+    const contact = 'redaction-contact-7788@example.invalid';
+    const name = 'Redaction Name 7788';
+    const message = 'Sensitive synthetic inquiry body 7788';
+    const login = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/sessions',
+      headers: { origin: config.corsOrigin },
+      payload: { username: 'test-editor', password: 'Test-only-password-123!' },
+    });
+    expect(login.statusCode).toBe(200);
+    const inquiryResponse = await app.inject({
+      method: 'POST',
+      url: '/v1/public/test-inquiries',
+      headers: { 'idempotency-key': randomUUID() },
+      payload: { ...inquiry, testName: name, testContact: contact, message },
+    });
+    expect(inquiryResponse.statusCode).toBe(201);
+    const output = logs.join('\n');
+    expect(output).not.toContain(name);
+    expect(output).not.toContain(contact);
+    expect(output).not.toContain(message);
+    expect(output).not.toContain('Test-only-password-123!');
+    await app.close();
   });
 
   it('allows only admin to read audit events and records content actions', async () => {

@@ -50,7 +50,7 @@ function canonicalHash(value: {
 }
 
 export async function inquiryRoutes(app: FastifyInstance, db: Database, config: AppConfig): Promise<void> {
-  const limiter = new RateLimiter(config.rateLimitLogin);
+  const limiter = new RateLimiter(config.rateLimitInquiry);
 
   app.post('/v1/public/test-inquiries', async (request, reply) => {
     if (config.nodeEnv === 'production' || !config.inquiryEnabled) throw errors.notFound();
@@ -92,11 +92,11 @@ export async function inquiryRoutes(app: FastifyInstance, db: Database, config: 
           if (!inquiry) throw errors.internal();
           return { row: inquiry, replay: true };
         }
-        await tx.query('DELETE FROM idempotency_keys WHERE scope=$1 AND key=$2', [scope, key]);
         await tx.query(
-          `INSERT INTO idempotency_keys (scope, key, request_hash, expires_at)
-           VALUES ($1,$2,$3,$4)`,
-          [scope, key, requestHash, expiresAt],
+          `UPDATE idempotency_keys
+              SET request_hash=$1, result_ref=NULL, expires_at=$2, created_at=now()
+            WHERE scope=$3 AND key=$4`,
+          [requestHash, expiresAt, scope, key],
         );
       }
 

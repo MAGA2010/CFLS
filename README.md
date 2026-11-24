@@ -76,6 +76,7 @@ DATABASE_URL='memory://' \
 SESSION_SECRET='local-only-random-secret-at-least-32-bytes' \
 CORS_ORIGIN='http://127.0.0.1:5173' \
 INQUIRY_ENABLED=true \
+AUTO_MIGRATE=true \
 pnpm dev
 ```
 
@@ -84,7 +85,7 @@ pnpm dev
 ## 常用命令
 
 ```bash
-pnpm dev          # API watch mode，启动前执行迁移
+pnpm dev          # AUTO_MIGRATE=true 时启动前执行迁移
 pnpm build        # API TypeScript 构建
 pnpm lint         # oxlint
 pnpm typecheck    # TypeScript strict

@@ -24,10 +24,13 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     sessionSecret: 'test-session-secret-at-least-32-bytes',
     corsOrigin: 'http://127.0.0.1:5173',
     inquiryEnabled: true,
+    autoMigrate: false,
     sessionIdleTtlMin: 120,
     sessionAbsoluteTtlMin: 720,
     rateLimitLogin: 5,
     rateLimitApi: 120,
+    rateLimitInquiry: 5,
+    trustRequestId: false,
     inquiryIdempotencyTtlH: 24,
     logLevel: 'silent',
     ...overrides,
@@ -50,11 +53,19 @@ export async function createTestContext(overrides: Partial<AppConfig> = {}): Pro
     ]);
     await db.query('INSERT INTO user_roles (user_id, role) VALUES ($1,$2)', [id, role]);
   }
+  const multiId = randomUUID();
+  await db.query('INSERT INTO users (id, username, password_hash) VALUES ($1,$2,$3)', [
+    multiId,
+    'test-multi',
+    passwordHash,
+  ]);
+  await db.query("INSERT INTO user_roles (user_id, role) VALUES ($1,'editor'), ($1,'reviewer')", [multiId]);
   const app = await buildApp({ config, db, dummyPasswordHash: passwordHash });
   const login = async (username: string) => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/admin/sessions',
+      headers: { origin: config.corsOrigin },
       payload: { username, password: TEST_PASSWORD },
     });
     if (response.statusCode !== 200) throw new Error(`Login failed: ${response.statusCode} ${response.body}`);

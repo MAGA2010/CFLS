@@ -124,6 +124,13 @@ paths:
     post:
       tags: [Auth]
       operationId: login
+      description: Requires an exact trusted `Origin` or same-origin `Referer` before creating a session.
+      parameters:
+        - name: Origin
+          in: header
+          required: false
+          description: Must equal the configured CORS origin. A same-origin Referer is accepted when Origin is absent.
+          schema: { type: string, format: uri }
       requestBody:
         required: true
         content:
@@ -136,6 +143,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '401': { $ref: '#/components/responses/AuthFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/RateLimited' }
   /v1/admin/me:
     get:

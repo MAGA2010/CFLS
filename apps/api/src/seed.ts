@@ -68,8 +68,28 @@ export async function seed(db: Awaited<ReturnType<typeof createDatabase>>, nodeE
     );
     await db.query(
       `INSERT INTO content_revisions (id, content_id, version, snapshot, actor_id)
+       VALUES ($1, $2, 1, $3::jsonb, $4)`,
+      [
+        randomUUID(),
+        id,
+        JSON.stringify({ ...item, status: 'draft', version: 1, publishedAt: null }),
+        userIds.editor,
+      ],
+    );
+    await db.query(
+      `INSERT INTO content_revisions (id, content_id, version, snapshot, actor_id)
        VALUES ($1, $2, 2, $3::jsonb, $4)`,
-      [randomUUID(), id, JSON.stringify({ ...item, status: 'published', version: 2 }), userIds.reviewer],
+      [
+        randomUUID(),
+        id,
+        JSON.stringify({
+          ...item,
+          status: 'published',
+          version: 2,
+          publishedAt: publishedAt.toISOString(),
+        }),
+        userIds.reviewer,
+      ],
     );
   }
 

@@ -25,6 +25,13 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
 
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f infra/Dockerfile.api -t cfls-api:ci .
+      - run: POSTGRES_PASSWORD=ci-only SESSION_SECRET=ci-only-session-secret-at-least-32-bytes docker compose -f infra/docker-compose.yml config
+
   integration:
     runs-on: ubuntu-latest
     services:

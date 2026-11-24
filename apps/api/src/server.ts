@@ -6,7 +6,7 @@ import { runMigrations } from './migrate.js';
 async function main(): Promise<void> {
   const config = loadConfig();
   const db = await createDatabase(config.databaseUrl);
-  await runMigrations(db);
+  if (config.autoMigrate) await runMigrations(db);
   const app = await buildApp({ config, db });
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');

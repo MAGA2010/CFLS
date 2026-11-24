@@ -47,6 +47,23 @@ function safeEqual(left: string, right: string): boolean {
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+export function verifyTrustedOrigin(request: FastifyRequest, config: AppConfig): void {
+  const origin = request.headers.origin;
+  if (typeof origin === 'string') {
+    if (origin === config.corsOrigin) return;
+    throw errors.csrf();
+  }
+  const referer = request.headers.referer;
+  if (typeof referer === 'string') {
+    try {
+      if (new URL(referer).origin === config.corsOrigin) return;
+    } catch {
+      // Fall through to the uniform CSRF error.
+    }
+  }
+  throw errors.csrf();
+}
+
 export function verifyCsrf(request: FastifyRequest, secret: string): void {
   const signed = request.cookies[CSRF_COOKIE];
   const header = request.headers[CSRF_HEADER];

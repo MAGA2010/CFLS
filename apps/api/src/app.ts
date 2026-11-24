@@ -18,6 +18,7 @@ interface BuildOptions {
   config: AppConfig;
   db: Database;
   dummyPasswordHash?: string;
+  loggerStream?: { write(message: string): void };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,11 +45,14 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
               ],
               censor: '[REDACTED]',
             },
+            ...(options.loggerStream ? { stream: options.loggerStream } : {}),
           },
     bodyLimit: 100 * 1024,
     genReqId(request) {
       const candidate = request.headers['x-request-id'];
-      return typeof candidate === 'string' && UUID.test(candidate) ? candidate : randomUUID();
+      return config.trustRequestId && typeof candidate === 'string' && UUID.test(candidate)
+        ? candidate
+        : randomUUID();
     },
     requestIdHeader: 'x-request-id',
   });
@@ -63,7 +67,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   const apiLimiter = new RateLimiter(config.rateLimitApi);
   app.addHook('onRequest', async (request) => {
     if (!request.url.startsWith('/v1/')) return;
-    if (request.url.startsWith('/v1/admin/sessions')) return;
+    if (request.method === 'POST' && request.url === '/v1/admin/sessions') return;
     if (request.url.startsWith('/v1/public/test-inquiries')) return;
     if (!apiLimiter.hit(`ip:${request.ip}`)) throw errors.rateLimited();
   });
