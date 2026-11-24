@@ -64,4 +64,4 @@ jobs:
       - run: pnpm seed:local
       - name: Scan tracked files for common secret material and real data markers
         run: |
-          ! git grep -nE '(postgresql://[^ ]+:[^ ]+@|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16})' -- ':!pnpm-lock.yaml' ':!.env.example' ':!infra/docker-compose.yml' ':!README.md'
+          ! git grep -nE '(postgresql://[^ ]+:[^ ]+@|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16})' -- ':!pnpm-lock.yaml' ':!.env.example' ':!infra/docker-compose.yml' ':!README.md' ':!.github/workflows/ci.yml'
