@@ -1,0 +1,59 @@
+name: Miniapp CI
+
+on:
+  pull_request:
+    paths:
+      - apps/miniapp/**
+      - packages/contracts/openapi.yaml
+      - .github/workflows/miniapp-ci.yml
+  push:
+    branches: [main]
+    paths:
+      - apps/miniapp/**
+      - packages/contracts/openapi.yaml
+      - .github/workflows/miniapp-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  miniapp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/miniapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/miniapp/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/miniapp/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Check generated types when the upstream contract is present
+        run: |
+          if [ -f ../../packages/contracts/openapi.yaml ]; then
+            pnpm generate:contract
+            git diff --exit-code -- src/api/generated.ts
+          fi
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Verify production excludes the inquiry page even with the flag set
+        run: |
+          pnpm build:mp-weixin
+          node tools/check-build.mjs
+        env:
+          VITE_API_BASE_URL: https://example.invalid
+          VITE_INQUIRY_ENABLED: 'true'
+      - name: Verify a staging build can include the inquiry page
+        run: |
+          pnpm build:staging
+          node tools/check-build.mjs dist/staging/mp-weixin --inquiry
+        env:
+          UNI_OUTPUT_DIR: ${{ github.workspace }}/apps/miniapp/dist/staging/mp-weixin
+          VITE_API_BASE_URL: https://example.invalid
+          VITE_INQUIRY_ENABLED: 'true'

@@ -1,0 +1,32 @@
+{
+  "pages": [
+    { "path": "pages/home/index", "style": { "navigationBarTitleText": "校园指南", "enablePullDownRefresh": true } },
+    { "path": "pages/catalog/index", "style": { "navigationBarTitleText": "栏目" } },
+    { "path": "pages/news/list", "style": { "navigationBarTitleText": "新闻", "enablePullDownRefresh": true } },
+    { "path": "pages/news/detail", "style": { "navigationBarTitleText": "新闻详情", "enablePullDownRefresh": true } },
+    { "path": "pages/content/list", "style": { "navigationBarTitleText": "栏目内容", "enablePullDownRefresh": true } },
+    { "path": "pages/content/detail", "style": { "navigationBarTitleText": "内容详情", "enablePullDownRefresh": true } },
+    // #ifdef CFLS_TEST_INQUIRY
+    { "path": "pages/inquiry/index", "style": { "navigationBarTitleText": "测试咨询" } },
+    // #endif
+    { "path": "pages/contact/index", "style": { "navigationBarTitleText": "联系我们", "enablePullDownRefresh": true } }
+  ],
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F5F6F7",
+    "backgroundTextStyle": "dark",
+    "onReachBottomDistance": 120
+  },
+  "tabBar": {
+    "color": "#646A73",
+    "selectedColor": "#1647B9",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页", "iconPath": "static/tabs/home.png", "selectedIconPath": "static/tabs/home-active.png" },
+      { "pagePath": "pages/catalog/index", "text": "栏目", "iconPath": "static/tabs/catalog.png", "selectedIconPath": "static/tabs/catalog-active.png" },
+      { "pagePath": "pages/news/list", "text": "新闻", "iconPath": "static/tabs/news.png", "selectedIconPath": "static/tabs/news-active.png" }
+    ]
+  }
+}
