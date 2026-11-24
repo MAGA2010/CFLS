@@ -37,6 +37,8 @@ P0 包括小程序核心内容、受控 CMS、真实 API 和测试数据库、�
 
 # 实施说明（A：后端与平台）
 
+[![CI](https://github.com/MAGA2010/CFLS/actions/workflows/ci.yml/badge.svg?branch=feat%2Fa-backend-platform)](https://github.com/MAGA2010/CFLS/actions/workflows/ci.yml)
+
 ## 技术决策
 
 | 项 | 决策 |
