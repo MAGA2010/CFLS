@@ -1,0 +1,16 @@
+{
+  "request": {
+    "username": "demo-editor",
+    "password": "<generated-by-seed-and-printed-once>"
+  },
+  "response": {
+    "data": {
+      "id": "2f6c8a22-8c17-4e1a-a9a2-d1f4cf9c9301",
+      "username": "demo-editor",
+      "roles": ["editor"],
+      "environment": "local",
+      "csrfToken": "<csrf-token>"
+    },
+    "requestId": "2ba6abf8-ef08-4867-b90b-981934a53e8e"
+  }
+}

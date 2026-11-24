@@ -1,0 +1,6 @@
+{
+  "name": "@cfls/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "files": ["openapi.yaml", "examples"]
+}

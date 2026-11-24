@@ -1,0 +1,23 @@
+{
+  "replay": {
+    "status": 200,
+    "headers": { "Idempotent-Replay": "true" },
+    "response": {
+      "data": {
+        "id": "c13f13cd-914a-448f-91fe-f763d5a28e42",
+        "createdAt": "2026-11-23T11:01:00.000Z"
+      },
+      "requestId": "c0132477-919e-4afa-af8c-cb30ca015245"
+    }
+  },
+  "differentBodySameKey": {
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "IDEMPOTENCY_CONFLICT",
+        "message": "Idempotency key was used with different content"
+      },
+      "requestId": "4f3ea1b4-e6b0-421a-94b2-6dd50b218cb4"
+    }
+  }
+}
