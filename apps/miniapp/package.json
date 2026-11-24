@@ -1,0 +1,42 @@
+{
+  "name": "@cfls/miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:staging": "uni build -p mp-weixin --mode staging",
+    "dev:h5": "uni",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "oxlint src test tools -D correctness -D suspicious",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "generate:contract": "node tools/generate-contract.mjs"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-5030420261029002",
+    "@dcloudio/uni-components": "3.0.0-5030420261029002",
+    "@dcloudio/uni-h5": "3.0.0-5030420261029002",
+    "@dcloudio/uni-mp-weixin": "3.0.0-5030420261029002",
+    "vue": "3.4.38"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.32",
+    "@dcloudio/uni-cli-shared": "3.0.0-5030420261029002",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5030420261029002",
+    "@types/node": "22.19.1",
+    "openapi-typescript": "7.13.0",
+    "oxlint": "1.94.0",
+    "sass": "1.93.2",
+    "typescript": "5.9.3",
+    "vite": "5.4.21",
+    "vitest": "3.2.6",
+    "vue-tsc": "3.1.8",
+    "yaml": "2.8.3"
+  }
+}
