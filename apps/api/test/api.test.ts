@@ -417,9 +417,13 @@ describe('inquiries and audit', () => {
     expect(writes.map((response) => response.statusCode).toSorted()).toEqual([200, 409]);
 
     const key = randomUUID();
+    const inquiryApp = await buildApp({
+      config: testConfig({ rateLimitInquiry: 20 }),
+      db: context.db,
+    });
     const submissions = await Promise.all(
       Array.from({ length: 10 }, () =>
-        context.app.inject({
+        inquiryApp.inject({
           method: 'POST',
           url: '/v1/public/test-inquiries',
           headers: { 'idempotency-key': key },
@@ -431,6 +435,7 @@ describe('inquiries and audit', () => {
     expect(submissions.filter((response) => response.statusCode === 200)).toHaveLength(9);
     const count = await context.db.query<{ total: string }>('SELECT count(*) AS total FROM inquiries');
     expect(Number(count.rows[0]?.total)).toBe(1);
+    await inquiryApp.close();
   });
 
   it('does not emit inquiry bodies, contacts, names or passwords in logs', async () => {
